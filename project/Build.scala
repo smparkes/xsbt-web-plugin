@@ -27,6 +27,8 @@ object WebBuild extends Build {
 
 	lazy val webSettings = Defaults.defaultSettings ++ webOnlySettings ++ sharedSettings
 
+        lazy val jetty7Version = "7.4.5.v20110725"
+
 	lazy val webOnlySettings = Seq(
 		organization := "com.github.siasia.sbt",
 		name := "web-app",
@@ -38,9 +40,9 @@ object WebBuild extends Build {
 				"org.scala-tools.sbt" %% "process" % version % "provided",
 				"org.mortbay.jetty" % "jetty" % "6.1.22" % "optional",
 				"org.mortbay.jetty" % "jetty-plus" % "6.1.22" % "optional",
-				"org.eclipse.jetty" % "jetty-server" % "7.3.0.v20110203" % "optional",
-				"org.eclipse.jetty" % "jetty-webapp" % "7.3.0.v20110203" % "optional",
-				"org.eclipse.jetty" % "jetty-plus" % "7.3.0.v20110203" % "optional"
+				"org.eclipse.jetty" % "jetty-server" % jetty7Version % "optional",
+				"org.eclipse.jetty" % "jetty-webapp" % jetty7Version % "optional",
+				"org.eclipse.jetty" % "jetty-plus" % jetty7Version % "optional"
 			)
 		},
 		generateJettyRun <<= generateJettyRunTask,
