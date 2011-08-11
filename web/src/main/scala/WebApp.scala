@@ -31,7 +31,7 @@ class JettyRunner(configuration: JettyConfiguration) extends ExitHook
 		def runJetty() =
 		{
 			val baseLoader = this.getClass.getClassLoader
-			val jettyParentLoader = configuration match { case d: DefaultJettyConfiguration => d.parentLoader; case _ => ClassLoader.getSystemClassLoader }
+			val jettyParentLoader = configuration.parentLoader
 			val jettyLoader: ClassLoader = ClasspathUtilities.toLoader(jettyClasspath, jettyParentLoader)
 			
 			val jettyFilter = (name: String) => name.startsWith("org.mortbay.") || name.startsWith("org.eclipse.jetty.")
@@ -90,24 +90,32 @@ sealed trait JettyConfiguration extends NotNull
 	def jettyClasspath: PathFinder
 	def classpathName: String
 	def log: AbstractLogger
+	def parentLoader: ClassLoader
 }
-trait DefaultJettyConfiguration extends JettyConfiguration
+trait JettyWebappConfiguration extends JettyConfiguration
 {
 	def war: File
 	def scanDirectories: Seq[File]
 	def scanInterval: Int
-	
-
 	def contextPath: String
-	def port: Int
 	/** The classpath containing the classes, jars, and resources for the web application. */
 	def classpath: PathFinder
-	def parentLoader: ClassLoader
 	def jettyEnv: Option[File]
 	def webDefaultXml: Option[File]
 }
+trait JettyXMLConfiguration extends JettyWebappConfiguration
+{
+	def jettyXML: String
+	// This can be promoted to a higher class but that requires more signature changes, so leave that pending
+	def jettyHome: Option[String]
+}
+trait DefaultJettyConfiguration extends JettyWebappConfiguration
+{
+	def port: Int
+}
 abstract class CustomJettyConfiguration extends JettyConfiguration
 {
+	def parentLoader = ClassLoader.getSystemClassLoader
 	def jettyConfigurationFiles: Seq[File] = Nil
 	def jettyConfigurationXML: NodeSeq = NodeSeq.Empty
 }

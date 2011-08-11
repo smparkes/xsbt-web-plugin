@@ -17,6 +17,8 @@ object WebPlugin extends Plugin {
 	val prepareWebapp = TaskKey[Seq[(File, String)]]("prepare-webapp")
 	val packageWar = TaskKey[File]("package-war")
 	val jettyHome = TaskKey[Option[String]]("jetty-home")
+	val jettyXML = TaskKey[Option[File]]("jetty-xml")
+	val jettyPaths = TaskKey[Map[Symbol,String]]("jetty-paths")
 	val jettyClasspaths = TaskKey[Map[Symbol,PathFinder]]("jetty-classpaths")
 	val jettyContext = SettingKey[String]("jetty-context")
 	val jettyScanDirs = SettingKey[Seq[File]]("jetty-scan-dirs")
@@ -25,6 +27,8 @@ object WebPlugin extends Plugin {
 	val jettyConfFiles = SettingKey[JettyConfFiles]("jetty-conf-files")
 	final case class JettyConfFiles(env: Option[File], webDefaultXml: Option[File])
 	val jettyConfiguration = TaskKey[JettyConfiguration]("jetty-configuration")
+	val jettyDefaultConfiguration = TaskKey[JettyConfiguration]("jetty-default-configuration")
+	val jettyXMLConfiguration = TaskKey[JettyConfiguration]("jetty-xml-configuration")
 	val jettyInstances = AttributeKey[Map[ProjectRef,JettyRunner]]("jetty-instance")
 
 	def prepareWebappTask(webappContents: PathFinder, warPath: File, classpath: PathFinder, ignore: PathFinder, defaultExcludes: FileFilter, slog: Logger): Seq[(File, String)] = {
@@ -70,7 +74,7 @@ object WebPlugin extends Plugin {
                 Map('webapp -> cp.map(_.data), 'jetty -> jettyCp.map(_.data))
 	}
 
-	def jettyConfigurationTask: Initialize[Task[JettyConfiguration]] = (jettyClasspaths, temporaryWarPath, jettyContext, scalaInstance, jettyScanDirs, jettyScanInterval, jettyPort, jettyConfFiles, state) map {
+	def jettyDefaultConfigurationTask: Initialize[Task[JettyConfiguration]] = (jettyClasspaths, temporaryWarPath, jettyContext, scalaInstance, jettyScanDirs, jettyScanInterval, jettyPort, jettyConfFiles, state) map {
 		(classpaths, warPath, context, scalaInstance, scanDirs, interval, jettyPort, confs, state) =>
 			new DefaultJettyConfiguration {
 				def classpath = classpaths('webapp)
@@ -82,6 +86,25 @@ object WebPlugin extends Plugin {
 				def scanDirectories = scanDirs
 				def scanInterval = interval
 				def port = jettyPort
+				def log = CommandSupport.logger(state).asInstanceOf[AbstractLogger]
+				def jettyEnv = confs.env
+				def webDefaultXml = confs.webDefaultXml
+			}
+	}
+
+	def jettyXMLConfigurationTask: Initialize[Task[JettyConfiguration]] = (jettyPaths, jettyClasspaths, temporaryWarPath, jettyContext, scalaInstance, jettyScanDirs, jettyScanInterval, jettyConfFiles, state) map {
+		(paths, classpaths, warPath, context, scalaInstance, scanDirs, interval, confs, state) =>
+			new JettyXMLConfiguration {
+                                def jettyXML = paths('xml)
+                                def jettyHome = paths.get('home)
+				def classpath = classpaths('webapp)
+				def jettyClasspath = classpaths('jetty)
+				def war = warPath
+				def contextPath = context
+				def classpathName = jettyConf.toString
+				def parentLoader = scalaInstance.loader
+				def scanDirectories = scanDirs
+				def scanInterval = interval
 				def log = CommandSupport.logger(state).asInstanceOf[AbstractLogger]
 				def jettyEnv = confs.env
 				def webDefaultXml = confs.webDefaultXml
@@ -155,7 +178,39 @@ object WebPlugin extends Plugin {
 		jettyScanInterval := JettyRunner.DefaultScanInterval,
 		jettyPort := JettyRunner.DefaultPort,
 		jettyConfFiles := JettyConfFiles(None, None),
-		jettyConfiguration <<= jettyConfigurationTask,
+                jettyXML <<= (jettyHome) map {
+                  home =>
+                    home match {
+                      case None => None
+                      case Some(path) =>
+                        val jetty_xml = (file(path) / "etc" / "jetty.xml")
+                        jetty_xml.exists match {
+                          case true => Some(jetty_xml)
+                          case _ => None
+                        }
+                    }
+                },
+                jettyPaths <<= (jettyHome, jettyXML) map {
+                  (home, xml) =>
+                    (home match {
+                      case Some(path) =>
+                        Map[Symbol,String]('home -> path)
+                      case None => Map.empty[Symbol,String]
+                    }) ++ (xml match {
+                      case Some(path) =>
+                        Map[Symbol,String]('xml -> path.getAbsolutePath)
+                      case None => Map.empty[Symbol,String]
+                    })
+                },
+		jettyConfiguration <<= (jettyXML, jettyDefaultConfiguration, jettyXMLConfiguration) map {
+                  (xml, defaultConfig, xmlConfig) =>
+                    xml match {
+                      case None => defaultConfig
+                      case Some(path) => xmlConfig
+                    }
+                },
+		jettyDefaultConfiguration <<= jettyDefaultConfigurationTask,
+		jettyXMLConfiguration <<= jettyXMLConfigurationTask,
 		commands ++= Seq(jettyRun, jettyStop, jettyReload)
 	) ++ packageTasks(packageWar, packageWarTask)
 }

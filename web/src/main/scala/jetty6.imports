@@ -1,5 +1,6 @@
 
 	import org.mortbay.jetty.{Handler, Server}
+	import org.mortbay.jetty.handler.{HandlerCollection, ContextHandlerCollection, DefaultHandler, RequestLogHandler}
 	import org.mortbay.jetty.nio.SelectChannelConnector
 	import org.mortbay.jetty.webapp.{WebAppClassLoader, WebAppContext, WebInfConfiguration, Configuration, JettyWebXmlConfiguration, TagLibConfiguration, WebXmlConfiguration}
 	import org.mortbay.log.{Log, Logger => JLogger}

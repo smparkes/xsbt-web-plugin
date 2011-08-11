@@ -54,11 +54,50 @@ private object LazyJettyRun${jetty.version} extends JettyRun
 		val (listener, scanner) =
 			configuration match
 			{
-				case c: DefaultJettyConfiguration =>
+				case c: JettyWebappConfiguration =>
 					import c._
-					configureDefaultConnector(server, port)
+
 					val webapp = new WebAppContext(Path.absolute(war).toString, contextPath)
 					webDefaultXml.foreach{webDefaultXml:File => webapp.setDefaultsDescriptor(webDefaultXml.toString)}
+
+                                        c match {
+                                          case dc: DefaultJettyConfiguration =>
+                                                configureDefaultConnector(server, dc.port)
+					        server.setHandler(webapp)
+
+                                          case xc: JettyXMLConfiguration =>
+                                                xc.jettyHome match {
+                                                        case Some(path) => System.setProperty("jetty.home", path)
+                                                        case _ =>
+                                                }
+
+                                                new XmlConfiguration(new File(xc.jettyXML).toURI.toURL).configure(server);
+
+                                                var handlers = server.getChildHandlerByClass(classOf[HandlerCollection]).asInstanceOf[HandlerCollection];
+                                                if (handlers == null) {
+                                                        handlers = new HandlerCollection();
+                                                        server.setHandler(handlers);
+                                                }
+
+                                                var contexts = handlers.getChildHandlerByClass(classOf[ContextHandlerCollection]).asInstanceOf[ContextHandlerCollection];
+                                                if (contexts == null) {
+                                                        contexts = new ContextHandlerCollection();
+                                                        handlers.addHandler(contexts);
+                                                }
+
+                                                contexts.setHandlers(Seq(webapp).toArray);
+                                          
+                                                var defaultHandler = handlers.getChildHandlerByClass(classOf[DefaultHandler]).asInstanceOf[DefaultHandler];
+                                                if (defaultHandler == null) {
+                                                        defaultHandler = new DefaultHandler();
+                                                        handlers.addHandler(defaultHandler);
+                                                }
+
+                                                var rlh = handlers.getChildHandlerByClass(classOf[RequestLogHandler]).asInstanceOf[RequestLogHandler];
+                                                if (rlh != null) {
+                                                        Log.setLog(oldLog)
+                                                }
+                                        }
 					
 					def createLoader =
 					{
@@ -89,7 +128,6 @@ private object LazyJettyRun${jetty.version} extends JettyRun
 					}
 					
 					setLoader()
-					server.setHandler(webapp)
 
 					val listener = new Scanner.BulkListener with Reload {
 						def reloadApp() = reload(server, setLoader(), log)
